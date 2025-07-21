@@ -6,7 +6,7 @@
 #include <SPI.h>
 #include <SD.h> 
 #include "RTClib.h"
-#include <Servo.h>     // for uno  #include <ESP32Servo.h>   // for esp32
+#include <Servo.h>     // for uno  #include <ESP32Servo.h> for esp32
 
 Servo myservo;  // create servo object to cHihtrol a servo
 Servo evacservo;
