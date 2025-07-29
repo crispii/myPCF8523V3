@@ -1,8 +1,6 @@
-#define ARDUINO_MEGA2560
+#define ARDUINO_UNO
 #define BUFFER_SIZE 128
 
-
-#include <Arducam_Mega.h>
 #include <SPI.h>
 #include <SD.h> 
 #include "RTClib.h"
