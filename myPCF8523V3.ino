@@ -1,4 +1,4 @@
-#define ARDUINO_UNO
+#define ARDUINO_MEGA2560
 #define BUFFER_SIZE 128
 
 
@@ -14,7 +14,7 @@ Servo evacservo;
 RTC_DS1307 rtc;
 
 //   Variables to control operation  ************************
-int startTime1 =13;       // time to start 1st   Will run for 3 hours first round
+int startTime1 =11;       // time to start 1st   Will run for 3 hours first round
 int startTime2 = 19;      // Time to start   2nd   Will run for 3 hours second round
 int minInState1 = 4;      // change to 180  number of minutes in State 1
 int nbrPics = 7;          // number of pictures at each half hour Will take pictures at min 29 and 59 of each hour
