@@ -1,6 +1,5 @@
-#define ARDUINO_UNO
-#define BUFFER_SIZE 128
 
+#include <Arducam_Mega.h>
 #include <SPI.h>
 #include <SD.h> 
 #include "RTClib.h"
@@ -15,7 +14,7 @@ RTC_DS1307 rtc;
 int startTime1 =11;       // time to start 1st   Will run for 3 hours first round
 int startTime2 = 19;      // Time to start   2nd   Will run for 3 hours second round
 int minInState1 = 4;      // change to 180  number of minutes in State 1
-int nbrPics = 7;          // number of pictures at each half hour Will take pictures at min 29 and 59 of each hour
+int nbrPics = 1;          // number of pictures at each half hour Will take pictures at min 29 and 59 of each hour
 int nbrPresses = 6;       // number of presses of fluor. powder
 int picMinute1 = 29;      // the minute on which to take pictures
 int picMinute2 = 59;       // the minute on which to take pictures
@@ -28,10 +27,8 @@ int mins;
 int secs;
 int started = 0;
 
-const int arducamCS = 10; 
-const int arducamSD = 4;
-
-const uint8_t arducamI2C = 0x78;
+const int arducamCS = 4; 
+const int arducamSD = 10;
 
 Arducam_Mega arducam(arducamCS);
 
@@ -58,8 +55,7 @@ int evacopn = 180;
 // RTC  Connects Yellow - SDA   Orange - SCL    Red - 3.3v   Brown - GND
 
 void setup () {
-  //Serial.begin(115200);
-  Serial.begin(19200);
+  Serial.begin(115200);
 
 #ifndef ESP8266
   while (!Serial); // wait for serial port to cHihnect. Needed for native USB
@@ -98,16 +94,9 @@ void setup () {
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0)); 
   Serial.println(F("SPI bus initialized."));
 
-
-  if (arducam.begin() == CAM_ERR_SUCCESS) {
-    Serial.println("Camera initialized");
-  } else {
-    Serial.println("Camera init failed");
-  }
-
-
-  Serial.print(F("Initializing SD card at CS pin: ")); Serial.println(arducamSD); // Will print 4
-  if (!SD.begin(arducamSD)) { // Use the defined SD_CS_PIN (D4)
+  Serial.print(F("Initializing SD card at CS pin: ")); Serial.println(arducamSD); // Will print 10
+  digitalWrite(arducamCS, HIGH);
+  if (!SD.begin(arducamSD)) { // Use the defined SD_CS_PIN (D10)
     Serial.println(F("ERROR: SD card initialization failed! No card detected. Is card inserted and formatted FAT16/FAT32?"));
     sdCardReady = false;
   } else {
@@ -115,7 +104,11 @@ void setup () {
     sdCardReady = true;
   }
 
-  
+  if (arducam.begin() == CAM_ERR_SUCCESS) {
+    Serial.println(F("Camera initialized"));
+  } else {
+    Serial.println(F("Camera init failed"));
+  }
 
   //delay(10000);
   delay(1000);
@@ -148,9 +141,7 @@ void loop () {
       started = 0;
       myservo.write(clse);  //door closed
       
-      evacservo.write(0);
       delay(2000);
-      evacservo.write(90);
       digitalWrite(funnelFan, LOW);    
       digitalWrite(evacFan, LOW);
       // digitalWrite(camera, LOW);
@@ -158,6 +149,8 @@ void loop () {
       digitalWrite(toMarkFan, LOW);
 
       digitalWrite(light, HIGH);
+
+      takePics();
      }
 
     if (State == 1) {
@@ -345,10 +338,9 @@ void takePics(){
 
     // Generate a unique filename based on RTC time (Date_Time_PhotoNum.JPG)
     DateTime now = rtc.now(); // Get current time from the shield's RTC
-    char filename[40]; // Sufficient for IMG_YYMMDD_HHMMSS_PNN.JPG (YYMMDD_HHMMSS_P0.JPG - P99.JPG)
-    sprintf(filename, "IMG_%02d%02d%02d_%02d%02d%02d_P%02d.JPG",
-            now.year() % 100, now.month(), now.day(),
-            now.hour(), now.minute(), now.second(), k);
+    static char filename[40]; // Sufficient for IMG_YYMMDD_HHMMSS_PNN.JPG (YYMMDD_HHMMSS_P0.JPG - P99.JPG)
+    sprintf(filename, "I%02d%02d%02d%02d.JPG",
+        now.day(), now.hour(), now.minute(), k);
 
     Serial.print(F("Attempting to capture: ")); Serial.println(filename);
 
@@ -361,14 +353,12 @@ void takePics(){
 
     CamStatus camStatus = arducam.takePicture(CAM_IMAGE_MODE_VGA, CAM_IMAGE_PIX_FMT_JPG);
 
-    digitalWrite(arducamCS, HIGH);    // Disable Arducam
-    digitalWrite(arducamSD, LOW);     // Re-enable SD
-
     Serial.println(F("After takePicture()"));
 
     if (camStatus != CAM_ERR_SUCCESS) {
       Serial.print(F("ERROR: Failed to start capture: "));
       Serial.println(camStatus); // Print the error status
+      digitalWrite(arducamCS, HIGH);
       continue; // Skip to next picture if capture fails
     }
 
@@ -378,11 +368,11 @@ void takePics(){
       continue;
     }
 
-    digitalWrite(arducamCS, HIGH);   // Disable camera
-    digitalWrite(arducamSD, LOW);    // Enable SD card
-
     if (sdCardReady) {
       // Open the file on the SD card to write the image
+      delay(10);
+      digitalWrite(arducamCS, HIGH); 
+      digitalWrite(arducamSD, LOW); 
       File imageFile = SD.open(filename, FILE_WRITE);
       if (!imageFile) {
         Serial.println(F("ERROR: Failed to open file for writing to SD card! Check SD card."));
@@ -390,12 +380,14 @@ void takePics(){
       }
 
       const int bufSize = 256;
-      uint8_t buf[bufSize];
+      static uint8_t buf[bufSize];
       uint32_t bytesRemaining = totalLen;
 
       while (bytesRemaining > 0) {
         uint32_t toRead = min(bufSize, bytesRemaining);
+
         arducam.readBuff(buf, toRead);
+
         imageFile.write(buf, toRead);
         bytesRemaining -= toRead;
       }
@@ -403,7 +395,7 @@ void takePics(){
       imageFile.close();
       Serial.print(F("Saved: ")); Serial.println(filename);
     } else {
-      Serial.println("WARNING: SD not ready.");
+      Serial.println(F("WARNING: SD not ready."));
     }
     
     delay(1500); // Delay between taking multiple pictures (was 1s)
@@ -412,4 +404,3 @@ void takePics(){
   digitalWrite(light, LOW);
   Serial.println(F("Finished Arducam capture sequence."));
 }
- 
